@@ -61,11 +61,26 @@ abstract class Manager
      * @return string
      */
     // abstract public function getDefaultDriver();
-    public function getDefaultDriver()
+    public function getDefaultDriver($name = "")
     {   
-        if (isset($this->app['config']['filesystems.default'])) {
-            return $this->app['config']['filesystems.default'];
+        if (isset($this->app['config'][$name])) {
+            return $this->app['config'][$name];
         }        
+    }
+
+    /**
+     * Get the filesystem connection configuration.
+     *
+     * @param  string  $prefix
+     * @param  string  $name
+     * @return array
+     */
+    protected function getConfig($prefix, $name)
+    {
+        if (isset($this->app['config']["{$prefix}.{$name}"])) {
+            return $this->app['config']["{$prefix}.{$name}"];
+        } 
+        return null;
     }
 
     /**
@@ -310,7 +325,7 @@ abstract class Manager
         $this->customCreators[$driver] = $callback;
 
         return $this;
-    }
+    }    
 
     /**
      * Get all of the created "drivers".

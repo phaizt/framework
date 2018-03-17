@@ -6,18 +6,13 @@ use Closure;
 use InvalidArgumentException;
 use Illuminate\Contracts\Queue\Factory as FactoryContract;
 use Illuminate\Contracts\Queue\Monitor as MonitorContract;
+use Illuminate\Support\Manager as SupportManager;
 
 /**
  * @mixin \Illuminate\Contracts\Queue\Queue
  */
-class QueueManager implements FactoryContract, MonitorContract
+class QueueManager extends SupportManager implements FactoryContract, MonitorContract
 {
-    /**
-     * The application instance.
-     *
-     * @var \Illuminate\Foundation\Application
-     */
-    protected $app;
 
     /**
      * The array of resolved queue connections.
@@ -25,13 +20,6 @@ class QueueManager implements FactoryContract, MonitorContract
      * @var array
      */
     protected $connections = [];
-
-    /**
-     * The array of resolved queue connectors.
-     *
-     * @var array
-     */
-    protected $connectors = [];
 
     /**
      * Create a new queue manager instance.
@@ -118,7 +106,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function connected($name = null)
     {
-        return isset($this->connections[$name ?: $this->getDefaultDriver()]);
+        return isset($this->connections[$name ?: $this->getDefaultDriver('queue.default')]);
     }
 
     /**
@@ -129,7 +117,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function connection($name = null)
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name = $name ?: $this->getDefaultDriver('queue.default');
 
         // If the connection has not been resolved yet we will resolve it now as all
         // of the connections are resolved when they are actually needed so we do
@@ -151,11 +139,12 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     protected function resolve($name)
     {
-        $config = $this->getConfig($name);
+        $config = $this->getConfig('queue.connections',$name);
+        $config = $config ?: ['driver' => "null"];
 
         return $this->getConnector($config['driver'])
                         ->connect($config)
-                        ->setConnectionName($name);
+                        ->setConnectionName($name);        
     }
 
     /**
@@ -168,60 +157,11 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     protected function getConnector($driver)
     {
-        if (! isset($this->connectors[$driver])) {
+        if (! isset($this->customCreators[$driver])) {
             throw new InvalidArgumentException("No connector for [$driver]");
         }
 
-        return call_user_func($this->connectors[$driver]);
-    }
-
-    /**
-     * Add a queue connection resolver.
-     *
-     * @param  string    $driver
-     * @param  \Closure  $resolver
-     * @return void
-     */
-    public function extend($driver, Closure $resolver)
-    {
-        return $this->addConnector($driver, $resolver);
-    }
-
-    /**
-     * Add a queue connection resolver.
-     *
-     * @param  string    $driver
-     * @param  \Closure  $resolver
-     * @return void
-     */
-    public function addConnector($driver, Closure $resolver)
-    {
-        $this->connectors[$driver] = $resolver;
-    }
-
-    /**
-     * Get the queue connection configuration.
-     *
-     * @param  string  $name
-     * @return array
-     */
-    protected function getConfig($name)
-    {
-        if (! is_null($name) && $name !== 'null') {
-            return $this->app['config']["queue.connections.{$name}"];
-        }
-
-        return ['driver' => 'null'];
-    }
-
-    /**
-     * Get the name of the default queue connection.
-     *
-     * @return string
-     */
-    public function getDefaultDriver()
-    {
-        return $this->app['config']['queue.default'];
+        return call_user_func($this->customCreators[$driver]);
     }
 
     /**
@@ -243,7 +183,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getName($connection = null)
     {
-        return $connection ?: $this->getDefaultDriver();
+        return $connection ?: $this->getDefaultDriver('queue.default');
     }
 
     /**
